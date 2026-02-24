@@ -1,0 +1,36 @@
+{
+  "metadata": {
+    "study_id": "string",
+    "title": "string",
+    "authors": "string",
+    "year": "integer",
+    "journal": "string"
+  },
+  "methods": {
+    "study_design": "string",
+    "population": "string",
+    "sample_size": "integer"
+  },
+  "analysis": {
+    "exposure": "string",
+    "outcome": "string",
+    "effect_measure": ["OR", "RR", "HR", "MD", "SMD"],
+    "effect_value": "float",
+    "ci_lower": "float",
+    "ci_upper": "float",
+    "group_statistics": {
+      "exposed": {
+        "mean": "float",
+        "sd": "float",
+        "n": "integer"
+      },
+      "control": {
+        "mean": "float",
+        "sd": "float",
+        "n": "integer"
+      }
+    },
+    "adjustment_variables": "string"
+  },
+  "notes": "string"
+}
