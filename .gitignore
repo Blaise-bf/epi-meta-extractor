@@ -7,3 +7,6 @@ venv/
 .DS_Store
 .ipynb_checkpoints/
 uv.lock
+/**/tmp/*
+*.sh
+
