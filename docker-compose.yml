@@ -1,0 +1,115 @@
+
+
+services:
+  # MongoDB for storing extracted data
+  mongodb:
+    image: mongo:7.0
+    container_name: epi-meta-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: epi_meta_extractor
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - epi-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Qdrant for vector similarity search
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: epi-meta-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT_API_KEY: ""  # Leave empty for local development
+    networks:
+      - epi-network
+    # Note: Qdrant image is minimal (no curl/wget/nc).
+    # We rely on service_started instead of healthcheck.
+
+  # -----------------------------------------------------------------
+  # PDF Parsers
+  # -----------------------------------------------------------------
+  # The app uses a unified parser with automatic fallback:
+  #   1. Marker (preferred) — install marker-pdf in backend
+  #   2. GROBID (optional) — structured scientific parsing
+  #   3. PyPDF (built-in) — ultimate fallback
+  #
+  # GROBID is now OPTIONAL. Uncomment if you need it as a fallback.
+  # See: https://grobid.readthedocs.io/en/latest/Grobid-docker/
+  # -----------------------------------------------------------------
+  # grobid:
+  #   image: grobid/grobid:0.9.0-crf
+  #   container_name: epi-meta-grobid
+  #   ports:
+  #     - "8070:8070"
+  #   environment:
+  #     - GROBID_HOME=/opt/grobid/grobid-home
+  #   networks:
+  #     - epi-network
+  #   healthcheck:
+  #     test: curl -f http://localhost:8070/api/isalive || exit 1
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 10
+  #     start_period: 60s
+
+  # -----------------------------------------------------------------
+  # FastAPI Backend
+  # -----------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: epi-meta-backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    environment:
+      MONGODB_URI: mongodb://admin:password@mongodb:27017
+      QDRANT_URL: http://qdrant:6333
+      # LLM Provider configuration
+      LLM_PROVIDER: ${LLM_PROVIDER:-deepseek}  # openai | deepseek | ollama
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      # Ollama (local or cloud — set LLM_PROVIDER=ollama)
+      OLLAMA_API_URL: ${OLLAMA_API_URL:-http://host.docker.internal:11434/v1}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-ollama}
+      # PDF Parser configuration
+      PDF_PARSER_PRIMARY: marker
+      PDF_PARSER_FALLBACK_CHAIN: marker,grobid,pypdf
+      MARKER_ENABLED: "true"
+      GROBID_ENABLED: "false"
+      GROBID_URL: http://grobid:8070
+      # Auth
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
+      FRONTEND_ORIGIN: http://localhost:3000
+    volumes:
+      - ./data:/app/data
+      - ./tmp:/app/tmp
+    networks:
+      - epi-network
+    restart: unless-stopped
+
+volumes:
+  mongodb_data:
+  qdrant_data:
+
+networks:
+  epi-network:
+    driver: bridge
