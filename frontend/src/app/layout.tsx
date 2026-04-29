@@ -1,22 +1,20 @@
 "use client";
 
-"use client";
-
 import "./globals.css";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { ThemeProvider } from "next-themes";
-import { Roboto } from "next/font/google";
+import { Space_Grotesk } from "next/font/google";
 import { useEffect } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { loadAuthFromStorage, saveAuthToStorage } from "@/lib/auth";
-import axios from "axios";
-import { API_BASE_URL } from "@/lib/api";
+import { api } from "@/lib/api";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
-const roboto = Roboto({
+const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "700"],
-  variable: "--font-roboto",
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-space-grotesk",
 });
 
 export default function RootLayout({
@@ -24,22 +22,15 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { authUser, accessToken, setAuth, setAuthChecked } = useAppStore();
+  const setAuth = useAppStore((s) => s.setAuth);
+  const setAuthChecked = useAppStore((s) => s.setAuthChecked);
 
   useEffect(() => {
     const initAuth = async () => {
-      console.log("[Layout] useEffect running");
-      
       // First, try to load from storage (synchronous)
       const { token, user } = loadAuthFromStorage();
-      console.log("[Layout] Loaded from storage:", { 
-        hasToken: !!token,
-        hasUser: !!user,
-        token: token ? token.substring(0, 20) + "..." : null,
-      });
-      
+
       if (token && user) {
-        console.log("[Layout] Setting auth from storage");
         setAuth(user, token);
         setAuthChecked(true);
         return;
@@ -47,41 +38,34 @@ export default function RootLayout({
 
       // If no stored auth, try to refresh from server
       try {
-        console.log("[Layout] No stored auth, attempting to refresh session");
-        const response = await axios.post(
-          `${API_BASE_URL}/auth/refresh`,
-          {},
-          { withCredentials: true }
-        );
+        const response = await api.auth.refresh();
         const { access_token, user: refreshedUser } = response.data;
-        console.log("[Layout] Refresh successful");
         setAuth(refreshedUser, access_token);
         saveAuthToStorage(access_token, refreshedUser);
-      } catch (error) {
-        console.log("[Layout] Refresh failed or not available:", error);
+      } catch {
         // Silent if refresh not available
       } finally {
-        console.log("[Layout] Marking auth as checked");
         setAuthChecked(true);
       }
     };
 
-    // Only run once on mount
     initAuth();
   }, [setAuth, setAuthChecked]);
 
   return (
-    <html lang="en" suppressHydrationWarning className={roboto.variable}>
+    <html lang="en" suppressHydrationWarning className={spaceGrotesk.variable}>
       <body
         suppressHydrationWarning
-        className="bg-white dark:bg-slate-950 text-slate-900 dark:text-white min-h-screen transition-colors flex flex-col font-roboto"
+        className="text-slate-900 dark:text-white min-h-screen transition-colors flex flex-col"
       >
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <Navbar />
-          <main className="max-w-6xl mx-auto px-6 py-12 grow w-full">
-            {children}
-          </main>
-          <Footer />
+          <ErrorBoundary>
+            <Navbar />
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 grow w-full">
+              {children}
+            </main>
+            <Footer />
+          </ErrorBoundary>
         </ThemeProvider>
       </body>
     </html>

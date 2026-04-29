@@ -1,4 +1,4 @@
-export type EffectType = "RR" | "OR" | "HR" | "MD" | "SMD";
+export type EffectType = "RR" | "OR" | "HR" | "MD" | "SMD" | "PROPORTION";
 
 export interface ExtractionProgressType {
   processed: number;

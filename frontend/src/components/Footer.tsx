@@ -1,26 +1,28 @@
 "use client";
 
+import { memo } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 
-export const Footer = () => {
+export const Footer = memo(function Footer() {
   const currentYear = new Date().getFullYear();
+  const reduceMotion = useReducedMotion();
 
   return (
     <motion.footer
-      initial={{ y: 20, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.5, delay: 0.2 }}
-      className="w-full border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 mt-20"
+      initial={reduceMotion ? false : { y: 20, opacity: 0 }}
+      animate={reduceMotion ? undefined : { y: 0, opacity: 1 }}
+      transition={reduceMotion ? undefined : { duration: 0.5, delay: 0.2 }}
+      className="w-full border-t border-cyan-100 dark:border-slate-800 bg-white/60 dark:bg-slate-950/60 backdrop-blur mt-20"
     >
-      <div className="max-w-6xl mx-auto px-6 py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           {/* Brand */}
           <div>
-            <h3 className="font-semibold text-slate-900 dark:text-white mb-4">
+            <h3 className="font-semibold text-slate-900 dark:text-white mb-4 text-lg">
               Epi Meta Extractor
             </h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
+            <p className="text-sm text-slate-600 dark:text-slate-400 max-w-xs">
               Automated epidemiologic meta-extraction for research studies.
             </p>
           </div>
@@ -34,7 +36,7 @@ export const Footer = () => {
               <li>
                 <Link
                   href="/"
-                  className="text-sm text-slate-600 dark:text-slate-400 hover:text-teal-500 dark:hover:text-teal-400 transition-colors"
+                  className="text-sm text-slate-600 dark:text-slate-400 hover:text-cyan-700 dark:hover:text-cyan-300 transition-colors"
                 >
                   Home
                 </Link>
@@ -42,25 +44,17 @@ export const Footer = () => {
               <li>
                 <Link
                   href="/results"
-                  className="text-sm text-slate-600 dark:text-slate-400 hover:text-teal-500 dark:hover:text-teal-400 transition-colors"
+                  className="text-sm text-slate-600 dark:text-slate-400 hover:text-cyan-700 dark:hover:text-cyan-300 transition-colors"
                 >
                   Results
                 </Link>
               </li>
               <li>
                 <Link
-                  href="/chat"
-                  className="text-sm text-slate-600 dark:text-slate-400 hover:text-teal-500 dark:hover:text-teal-400 transition-colors"
+                  href="/new-meta-analysis"
+                  className="text-sm text-slate-600 dark:text-slate-400 hover:text-cyan-700 dark:hover:text-cyan-300 transition-colors"
                 >
-                  Chat
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/how-to"
-                  className="text-sm text-slate-600 dark:text-slate-400 hover:text-teal-500 dark:hover:text-teal-400 transition-colors"
-                >
-                  How To
+                  New Project
                 </Link>
               </li>
             </ul>
@@ -73,28 +67,20 @@ export const Footer = () => {
             </h4>
             <ul className="space-y-2">
               <li>
-                <a
-                  href="#"
-                  className="text-sm text-slate-600 dark:text-slate-400 hover:text-teal-500 dark:hover:text-teal-400 transition-colors"
+                <Link
+                  href="/how-to"
+                  className="text-sm text-slate-600 dark:text-slate-400 hover:text-cyan-700 dark:hover:text-cyan-300 transition-colors"
                 >
-                  Documentation
-                </a>
+                  How To
+                </Link>
               </li>
               <li>
-                <a
-                  href="#"
-                  className="text-sm text-slate-600 dark:text-slate-400 hover:text-teal-500 dark:hover:text-teal-400 transition-colors"
+                <Link
+                  href="/chat"
+                  className="text-sm text-slate-600 dark:text-slate-400 hover:text-cyan-700 dark:hover:text-cyan-300 transition-colors"
                 >
-                  API Reference
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#"
-                  className="text-sm text-slate-600 dark:text-slate-400 hover:text-teal-500 dark:hover:text-teal-400 transition-colors"
-                >
-                  Support
-                </a>
+                  Chat
+                </Link>
               </li>
             </ul>
           </div>
@@ -106,60 +92,28 @@ export const Footer = () => {
             </h4>
             <ul className="space-y-2">
               <li>
-                <a
-                  href="#"
-                  className="text-sm text-slate-600 dark:text-slate-400 hover:text-teal-500 dark:hover:text-teal-400 transition-colors"
-                >
-                  Privacy
-                </a>
+                <span className="text-sm text-slate-600 dark:text-slate-400">
+                  Privacy Policy
+                </span>
               </li>
               <li>
-                <a
-                  href="#"
-                  className="text-sm text-slate-600 dark:text-slate-400 hover:text-teal-500 dark:hover:text-teal-400 transition-colors"
-                >
-                  Terms
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#"
-                  className="text-sm text-slate-600 dark:text-slate-400 hover:text-teal-500 dark:hover:text-teal-400 transition-colors"
-                >
-                  License
-                </a>
+                <span className="text-sm text-slate-600 dark:text-slate-400">
+                  Terms of Service
+                </span>
               </li>
             </ul>
           </div>
         </div>
 
-        {/* Divider */}
-        <div className="border-t border-slate-200 dark:border-slate-800 pt-8">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-slate-600 dark:text-slate-400">
-            <p>© {currentYear} Epi Meta Extractor. All rights reserved.</p>
-            <div className="flex gap-6">
-              <a
-                href="#"
-                className="hover:text-teal-500 dark:hover:text-teal-400 transition-colors"
-              >
-                Twitter
-              </a>
-              <a
-                href="#"
-                className="hover:text-teal-500 dark:hover:text-teal-400 transition-colors"
-              >
-                GitHub
-              </a>
-              <a
-                href="#"
-                className="hover:text-teal-500 dark:hover:text-teal-400 transition-colors"
-              >
-                LinkedIn
-              </a>
-            </div>
-          </div>
+        <div className="border-t border-slate-200 dark:border-slate-800 pt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            © {currentYear} Epi Meta Extractor. All rights reserved.
+          </p>
+          <p className="text-xs text-slate-400 dark:text-slate-500">
+            Built with Next.js, FastAPI, and GROBID
+          </p>
         </div>
       </div>
     </motion.footer>
   );
-};
+});

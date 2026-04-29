@@ -1,14 +1,24 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-teal-500: #14b8a6;
-  --color-teal-400: #2dd4bf;
+  --color-brand-500: #0d9488;
+  --color-brand-400: #14b8a6;
+  --color-brand-300: #5eead4;
+  --color-ink-950: #0f172a;
+  --color-ink-700: #334155;
+  --color-mist-100: #f1f5f9;
 }
 
 :root {
   color-scheme: light;
-  --background: #ffffff;
+  --background: #f7fafc;
   --foreground: #0f172a;
+  --surface: #ffffff;
+  --surface-muted: #eff6ff;
+  --stroke: #dbeafe;
+  --hero-glow: radial-gradient(circle at 20% -10%, rgba(14, 116, 144, 0.25), transparent 45%),
+    radial-gradient(circle at 90% 0%, rgba(20, 184, 166, 0.2), transparent 38%),
+    linear-gradient(180deg, #f8fbff 0%, #eef6ff 100%);
 }
 
 html {
@@ -16,17 +26,41 @@ html {
 }
 
 body {
-  @apply transition-colors duration-200;
+  @apply transition-colors duration-200 antialiased;
+  min-height: 100vh;
 }
 
 html.dark {
   color-scheme: dark;
-  --background: #0f172a;
-  --foreground: #f1f5f9;
+  --background: #020617;
+  --foreground: #e2e8f0;
+  --surface: #0b1222;
+  --surface-muted: #101b34;
+  --stroke: #1e293b;
+  --hero-glow: radial-gradient(circle at 15% -10%, rgba(14, 165, 233, 0.18), transparent 45%),
+    radial-gradient(circle at 90% 0%, rgba(20, 184, 166, 0.16), transparent 38%),
+    linear-gradient(180deg, #030712 0%, #020617 100%);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-space-grotesk), "Segoe UI", sans-serif;
+  background-image: var(--hero-glow);
+  background-attachment: fixed;
+}
+
+::selection {
+  background: rgba(20, 184, 166, 0.22);
+  color: var(--foreground);
+}
+
+.surface-card {
+  background: color-mix(in oklab, var(--surface) 92%, transparent);
+  border: 1px solid var(--stroke);
+  box-shadow: 0 8px 30px rgba(2, 6, 23, 0.05);
+}
+
+html.dark .surface-card {
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.35);
 }
