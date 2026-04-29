@@ -13,12 +13,35 @@ venv/
 .DS_Store
 .ipynb_checkpoints/
 
+# IDE / Editor configs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Frontend editor artifacts
+frontend/.agents/
+frontend/.claude/
+frontend/.continue/
+frontend/skills-lock.json
+
+# Build artifacts
+frontend/.next/
+frontend/node_modules/
+frontend/dist/
+
+# Python lock files (use requirements.txt instead)
+uv.lock
+poetry.lock
+
+# Runtime data
 tmp/
 backend/tmp/
 data/raw_pdfs/
 
-frontend/.next/
-frontend/node_modules/
-
+# Coverage
 coverage/
 htmlcov/
+
+# Generated files
+grobid_output.xml
