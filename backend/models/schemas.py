@@ -10,6 +10,7 @@ class EffectMeasure(str, Enum):
     HR = "HR"
     MD = "MD"
     SMD = "SMD"
+    PROPORTION = "PROPORTION"
 
 class ExtractionQuality(BaseModel):
     """Quality metrics for extraction"""
@@ -37,7 +38,16 @@ class Analysis(BaseModel):
     effect_value: Optional[float] = None
     ci_lower: Optional[float] = None
     ci_upper: Optional[float] = None
+    p_value: Optional[float] = None
     group_statistics: Optional[GroupData] = None
+
+    # Effect-size-specific blocks (only one should be populated per extraction)
+    proportion_data: Optional[Dict[str, Any]] = None  # {events, sample_size, proportion, se, ci_lower, ci_upper}
+    two_by_two_table: Optional[Dict[str, Any]] = None  # {a, b, c, d}
+    continuous_data: Optional[Dict[str, Any]] = None  # {exposed_mean, exposed_sd, exposed_n, control_mean, control_sd, control_n}
+    survival_data: Optional[Dict[str, Any]] = None  # {events_exposed, events_control, person_time_exposed, person_time_control, rate_exposed, rate_control}
+
+    adjustment_variables: Optional[List[str]] = Field(default_factory=list)
 
 class Methods(BaseModel):
     study_design: Optional[str] = None
@@ -69,6 +79,13 @@ class ExtractedStudy(BaseModel):
     confidence: Optional[float] = None
     extraction_attempts: int = 1
     last_extraction_at: Optional[datetime] = None
+    # Structured GROBID metadata (when GROBID is used)
+    grobid_metadata: Optional[Dict[str, Any]] = Field(
+        None, description="Structured metadata from GROBID PDF parsing"
+    )
+    used_grobid: bool = Field(
+        False, description="Whether GROBID was used for PDF parsing"
+    )
     
     class Config:
         json_schema_extra = {

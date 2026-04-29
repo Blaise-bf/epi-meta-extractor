@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HR Extraction Schema",
+  "description": "Schema for extracting hazard ratio data from survival / time-to-event studies.",
+  "type": "object",
+  "required": ["metadata", "methods", "analysis"],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "required": ["title"],
+      "properties": {
+        "study_id": { "type": ["string", "null"], "description": "Study identifier (e.g., DOI)" },
+        "title": { "type": "string", "description": "Full study title — MANDATORY" },
+        "authors": { "type": ["string", "null"], "description": "First author or all authors" },
+        "year": { "type": ["integer", "null"], "description": "Publication year" },
+        "journal": { "type": ["string", "null"], "description": "Journal name" },
+        "country": { "type": ["string", "null"], "description": "Country where study was conducted" },
+        "continent": { "type": ["string", "null"], "description": "Continent (optional, inferred from country)" }
+      }
+    },
+    "methods": {
+      "type": "object",
+      "properties": {
+        "study_design": { "type": ["string", "null"], "description": "Study design (e.g., Prospective cohort, RCT)" },
+        "population": { "type": ["string", "null"], "description": "Study population description" },
+        "sample_size": { "type": ["integer", "null"], "description": "Total sample size" },
+        "exposure_definition": { "type": ["string", "null"], "description": "How exposure was defined" },
+        "outcome_definition": { "type": ["string", "null"], "description": "How outcome was defined" }
+      }
+    },
+    "analysis": {
+      "type": "object",
+      "required": ["exposure", "outcome", "effect_measure"],
+      "properties": {
+        "exposure": { "type": "string", "description": "Exposure variable — empty string if not relevant" },
+        "outcome": { "type": "string", "description": "Outcome variable — empty string if not relevant" },
+        "effect_measure": { "type": "string", "enum": ["HR"], "description": "Must be 'HR'" },
+        "effect_value": { "type": ["number", "null"], "description": "Point estimate of HR" },
+        "ci_lower": { "type": ["number", "null"], "description": "95% CI lower bound" },
+        "ci_upper": { "type": ["number", "null"], "description": "95% CI upper bound" },
+        "p_value": { "type": ["number", "null"], "description": "Statistical p-value" },
+        "survival_data": {
+          "type": "object",
+          "description": "Survival / time-to-event data. Optional but enables recomputation of HR.",
+          "properties": {
+            "events_exposed": { "type": ["integer", "null"], "minimum": 0, "description": "Events in exposed group" },
+            "events_control": { "type": ["integer", "null"], "minimum": 0, "description": "Events in control group" },
+            "person_time_exposed": { "type": ["number", "null"], "minimum": 0, "description": "Person-time in exposed group (e.g., person-years)" },
+            "person_time_control": { "type": ["number", "null"], "minimum": 0, "description": "Person-time in control group" },
+            "rate_exposed": { "type": ["number", "null"], "minimum": 0, "description": "Event rate in exposed group" },
+            "rate_control": { "type": ["number", "null"], "minimum": 0, "description": "Event rate in control group" }
+          }
+        },
+        "adjustment_variables": { "type": "array", "items": { "type": "string" }, "description": "Variables adjusted for" }
+      }
+    }
+  }
+}

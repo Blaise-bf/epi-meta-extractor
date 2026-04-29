@@ -9,7 +9,9 @@
   "methods": {
     "study_design": "string",
     "population": "string",
-    "sample_size": "integer"
+    "sample_size": "integer",
+    "exposure_definition": "string",
+    "outcome_definition": "string"
   },
   "analysis": {
     "exposure": "string",
@@ -18,19 +20,19 @@
     "effect_value": "float",
     "ci_lower": "float",
     "ci_upper": "float",
+    "p_value": "float",
     "group_statistics": {
       "exposed": {
         "mean": "float",
         "sd": "float",
         "n": "integer"
       },
-      "control": {
+      "unexposed": {
         "mean": "float",
         "sd": "float",
         "n": "integer"
       }
     },
-    "adjustment_variables": "string"
-  },
-  "notes": "string"
+    "adjustment_variables": ["string"]
+  }
 }

@@ -8,7 +8,7 @@ from backend.models.schemas import (
     BatchJob, BatchJobFile, BatchJobStatus, ExtractedStudy,
     EffectMeasure, Metadata, Methods, Analysis
 )
-from backend.ingestion.pdf_parser import extract_text_from_pdf
+from backend.ingestion.pdf_parser import extract_text_from_pdf, parse_pdf
 from backend.services.extraction import llm_extraction_service
 from backend.services.embeddings import embedding_service
 from backend.services.validation import (
@@ -148,16 +148,35 @@ class BatchProcessingService:
                 with open(tmp_path, "wb") as f:
                     f.write(file_contents)
                 
-                # Extract text
+                # Extract text using GROBID (with PyPDF fallback)
                 start_time = time.time()
-                pdf_result = extract_text_from_pdf(tmp_path)
-                full_text = "\n".join([page["text"] for page in pdf_result["pages"]])
+                grobid_doc, used_grobid = await parse_pdf(tmp_path)
+                full_text = grobid_doc.to_plain_text()
+
+                # Pre-populate metadata from GROBID if available
+                pre_filled_metadata: Dict[str, Any] = {}
+                if used_grobid and grobid_doc.title:
+                    pre_filled_metadata["title"] = grobid_doc.title
+                if used_grobid and grobid_doc.publication_date:
+                    try:
+                        pre_filled_metadata["year"] = int(grobid_doc.publication_date[:4])
+                    except (ValueError, TypeError):
+                        pass
+                if used_grobid and grobid_doc.authors:
+                    pre_filled_metadata["authors"] = ", ".join(
+                        a.raw_name for a in grobid_doc.authors if a.raw_name
+                    )
+                if used_grobid and grobid_doc.journal:
+                    pre_filled_metadata["journal"] = grobid_doc.journal
+                if used_grobid and grobid_doc.doi:
+                    pre_filled_metadata["study_id"] = grobid_doc.doi
                 
                 # Extract structured data with semantic retrieval
                 extracted_data = await llm_extraction_service.extract_study_data(
                     full_text,
                     batch_job.effect_type,
-                    use_semantic_search=True
+                    use_semantic_search=True,
+                    pre_filled_metadata=pre_filled_metadata if pre_filled_metadata else None,
                 )
                 
                 # Extract first author for progress display
@@ -184,6 +203,11 @@ class BatchProcessingService:
                     full_text
                 )
                 
+                # Build GROBID metadata dict for storage
+                grobid_metadata = None
+                if used_grobid:
+                    grobid_metadata = grobid_doc.to_dict()
+
                 # Create study document
                 study = ExtractedStudy(
                     filename=filename,
@@ -199,7 +223,9 @@ class BatchProcessingService:
                     quality_metrics=quality_metrics,
                     file_hash=file_hash,
                     processing_time_ms=(time.time() - start_time) * 1000,
-                    confidence=quality_metrics.confidence_score
+                    confidence=quality_metrics.confidence_score,
+                    grobid_metadata=grobid_metadata,
+                    used_grobid=used_grobid,
                 )
                 
                 # Save to MongoDB

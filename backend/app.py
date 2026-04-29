@@ -23,7 +23,8 @@ from backend.db.mongodb import (
     list_all_meta_analyses, add_study_to_meta_analysis, delete_meta_analysis
 )
 from backend.db.vector_store import vector_store
-from backend.ingestion.pdf_parser import extract_text_from_pdf
+from backend.ingestion.pdf_parser import extract_text_from_pdf, parse_pdf
+from backend.services.grobid_client import GrobidExtractedDocument
 from backend.services.extraction import llm_extraction_service
 from backend.services.embeddings import embedding_service
 from backend.services.validation import (
@@ -163,6 +164,30 @@ def health_check():
     }
 
 
+# GROBID health check
+@app.get("/health/grobid")
+async def grobid_health_check():
+    """Check if GROBID service is available"""
+    from backend.services.grobid_client import GrobidClient
+    client = GrobidClient()
+    try:
+        available = await client.is_available()
+        await client.close()
+        return {
+            "grobid_available": available,
+            "grobid_url": settings.GROBID_URL,
+            "grobid_enabled": settings.GROBID_ENABLED,
+        }
+    except Exception as e:
+        await client.close()
+        return {
+            "grobid_available": False,
+            "grobid_url": settings.GROBID_URL,
+            "grobid_enabled": settings.GROBID_ENABLED,
+            "error": str(e),
+        }
+
+
 def serialize_mongo_document(doc: Any) -> Any:
     """Convert MongoDB document to JSON-serializable format"""
     if doc is None:
@@ -195,10 +220,24 @@ def serialize_mongo_document(doc: Any) -> Any:
 
 # Schema endpoint
 @app.get("/schema")
-def get_schema():
-    """Get the expected extraction schema"""
-    with open("backend/schemas/core_schema.json") as f:
-        return json.load(f)
+def get_schema(effect_type: str = Query(None)):
+    """Get the expected extraction schema.
+
+    If effect_type is provided, returns the effect-size-specific schema.
+    Otherwise, returns the generic core schema.
+    """
+    from backend.schemas.loader import load_effect_schema, load_schema
+
+    if effect_type:
+        schema = load_effect_schema(effect_type)
+        if schema:
+            return schema
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid effect_type. Must be one of: {list_effect_schemas()}"
+        )
+
+    return load_schema()
 
 
 # Auth endpoints
@@ -279,7 +318,7 @@ async def upload_pdf(
     
     Args:
         file: PDF file or ZIP archive containing PDFs
-        effect_type: Effect measure type (OR, RR, HR, MD, SMD) - via query param
+        effect_type: Effect measure type (OR, RR, HR, MD, SMD, PROPORTION) - via query param
         meta_analysis_id: Optional meta-analysis ID to group studies - via query param
         outcome: The outcome variable of interest (required)
         exposure: The exposure variable of interest (required)
@@ -381,19 +420,40 @@ async def upload_pdf(
                 "message": f"Batch processing started for {len(file_list)} PDF files"
             }
         
-        # Handle single PDF
-        pdf_result = extract_text_from_pdf(tmp_path)
-        
-        # Combine all pages into single text for extraction
-        full_text = "\n".join([page["text"] for page in pdf_result["pages"]])
-        
+        # Handle single PDF — use unified parser (Marker → GROBID → PyPDF)
+        grobid_doc, used_grobid = await parse_pdf(tmp_path)
+        full_text = grobid_doc.to_plain_text()
+
+        # Get page count directly from the PDF
+        from pypdf import PdfReader
+        num_pages = len(PdfReader(str(tmp_path)).pages)
+
+        # Pre-populate metadata from GROBID if available
+        pre_filled_metadata: Dict[str, Any] = {}
+        if used_grobid and grobid_doc.title:
+            pre_filled_metadata["title"] = grobid_doc.title
+        if used_grobid and grobid_doc.publication_date:
+            try:
+                pre_filled_metadata["year"] = int(grobid_doc.publication_date[:4])
+            except (ValueError, TypeError):
+                pass
+        if used_grobid and grobid_doc.authors:
+            pre_filled_metadata["authors"] = ", ".join(
+                a.raw_name for a in grobid_doc.authors if a.raw_name
+            )
+        if used_grobid and grobid_doc.journal:
+            pre_filled_metadata["journal"] = grobid_doc.journal
+        if used_grobid and grobid_doc.doi:
+            pre_filled_metadata["study_id"] = grobid_doc.doi
+
         # Extract structured data using LLM with semantic search
         extracted_data = await llm_extraction_service.extract_study_data(
             full_text,
             EffectMeasure(effect_type),
             outcome=outcome,
             exposure=exposure,
-            use_semantic_search=True
+            use_semantic_search=True,
+            pre_filled_metadata=pre_filled_metadata if pre_filled_metadata else None,
         )
         
         # Check if study is relevant (has both outcome and exposure)
@@ -474,6 +534,11 @@ async def upload_pdf(
         methods_dict = extracted_data.get("methods") or {}
         analysis_dict = extracted_data.get("analysis") or {}
         
+        # Build GROBID metadata dict for storage
+        grobid_metadata = None
+        if used_grobid:
+            grobid_metadata = grobid_doc.to_dict()
+        
         study = ExtractedStudy(
             filename=file.filename,
             effect_type=EffectMeasure(effect_type),
@@ -486,6 +551,8 @@ async def upload_pdf(
             extracted_data=extracted_data,
             embedding=embedding,
             processing_time_ms=processing_time,
+            grobid_metadata=grobid_metadata,
+            used_grobid=used_grobid,
         )
         
         # Save to MongoDB
@@ -519,7 +586,7 @@ async def upload_pdf(
             "study_id": study_id,
             "file_name": file.filename,
             "effect_type": effect_type,
-            "num_pages": pdf_result["num_pages"],
+            "num_pages": num_pages,
             "processing_time_ms": processing_time,
             "extracted_data": extracted_data
         }

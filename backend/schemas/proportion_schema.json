@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Proportion Extraction Schema",
+  "description": "Schema for extracting proportion data from epidemiological studies (e.g., prevalence, incidence, proportion).",
+  "type": "object",
+  "required": ["metadata", "methods", "analysis"],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "required": ["title"],
+      "properties": {
+        "study_id": { "type": ["string", "null"], "description": "Study identifier (e.g., DOI)" },
+        "title": { "type": "string", "description": "Full study title — MANDATORY" },
+        "authors": { "type": ["string", "null"], "description": "First author or all authors" },
+        "year": { "type": ["integer", "null"], "description": "Publication year" },
+        "journal": { "type": ["string", "null"], "description": "Journal name" },
+        "country": { "type": ["string", "null"], "description": "Country where study was conducted" },
+        "continent": { "type": ["string", "null"], "description": "Continent (optional, inferred from country)" }
+      }
+    },
+    "methods": {
+      "type": "object",
+      "properties": {
+        "study_design": { "type": ["string", "null"], "description": "Study design (e.g., Cross-sectional, Cohort, RCT)" },
+        "population": { "type": ["string", "null"], "description": "Study population description" },
+        "sample_size": { "type": ["integer", "null"], "description": "Total sample size" },
+        "exposure_definition": { "type": ["string", "null"], "description": "How exposure was defined" },
+        "outcome_definition": { "type": ["string", "null"], "description": "How outcome was defined" }
+      }
+    },
+    "analysis": {
+      "type": "object",
+      "required": ["exposure", "outcome", "proportion_data"],
+      "properties": {
+        "exposure": { "type": "string", "description": "Exposure variable — empty string if not relevant" },
+        "outcome": { "type": "string", "description": "Outcome variable — empty string if not relevant" },
+        "effect_measure": { "type": "string", "enum": ["PROPORTION"], "description": "Must be 'PROPORTION'" },
+        "proportion_data": {
+          "type": "object",
+          "description": "Proportion-specific data. Either (events + sample_size) OR (proportion + se) must be provided.",
+          "properties": {
+            "events": { "type": ["integer", "null"], "minimum": 0, "description": "Number of events (e.g., cases, deaths)" },
+            "sample_size": { "type": ["integer", "null"], "minimum": 1, "description": "Total sample size (denominator)" },
+            "proportion": { "type": ["number", "null"], "minimum": 0, "maximum": 1, "description": "Pre-computed proportion (events / sample_size)" },
+            "se": { "type": ["number", "null"], "minimum": 0, "description": "Standard error of the proportion" },
+            "ci_lower": { "type": ["number", "null"], "minimum": 0, "maximum": 1, "description": "95% CI lower bound" },
+            "ci_upper": { "type": ["number", "null"], "minimum": 0, "maximum": 1, "description": "95% CI upper bound" }
+          }
+        },
+        "adjustment_variables": { "type": "array", "items": { "type": "string" }, "description": "Variables adjusted for" }
+      }
+    }
+  }
+}
