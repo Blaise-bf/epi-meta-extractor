@@ -1,157 +1,88 @@
-# Semi-Automated Evidence Extraction and Synthesis for Epidemiological Research
+# Epi Meta Extractor
 
-## Overview
+Epi Meta Extractor is a full-stack application for turning epidemiology study PDFs into structured, reviewable metadata for systematic reviews and meta-analyses.
 
-This project implements a **semi-automated, schema-driven application** designed to assist epidemiologists in extracting structured data from scientific articles for systematic reviews and meta-analyses.
+The current codebase consists of:
+- a FastAPI backend for PDF ingestion, LLM extraction, batch processing, auth, and export
+- a Next.js frontend for authentication, project setup, uploads, progress tracking, and results review
+- **GROBID** for structured scientific PDF parsing (metadata, sections, references)
+- MongoDB for study/project storage
+- Qdrant for optional semantic search over embeddings
 
-The tool focuses on **transparency, traceability, and human validation**, addressing key limitations of fully automated AI-based extraction systems in evidence-based research.
+## Repository Layout
 
----
-
-## Motivation
-
-Systematic reviews and meta-analyses require manual extraction of study characteristics, effect estimates, and methodological details from multiple PDF articles. This process is:
-
-* Time-consuming
-* Prone to inconsistencies
-* Difficult to audit and reproduce
-
-While recent advances in natural language processing (NLP) enable automated text extraction, many existing tools lack:
-
-* Explicit linkage between extracted values and source text
-* Confidence assessment
-* Opportunities for human review and correction
-
-This project aims to bridge that gap by combining modern NLP techniques with **epidemiology-aware system design**.
-
----
-
-## Key Features
-
-* **PDF ingestion and scientific text parsing**
-* **Schema-driven data extraction** for meta-analysis
-* **Human-in-the-loop validation interface**
-* **Source-linked extracted values** with confidence indicators
-* **Meta-analysis–ready data export** (CSV / Excel / JSON)
-* **Structured article summaries**
-* **Exploratory cross-article thematic synthesis**
-
----
-
-## Core Design Principles
-
-* **Semi-automation over full automation**
-  Human oversight is central to the workflow.
-
-* **Schema-first extraction**
-  Users define *what* to extract before extraction begins.
-
-* **Full traceability**
-  Every extracted value is linked to its source text and document section.
-
-* **Reproducibility and transparency**
-  Outputs are auditable and suitable for scientific use.
-
----
-
-## System Workflow
-
-1. **Upload PDFs**
-   Scientific articles in PDF format are ingested.
-
-2. **Document Parsing**
-   Text is extracted and structured by section (Abstract, Methods, Results, Tables).
-
-3. **Schema-Driven Extraction**
-   A user-defined schema guides the extraction of specific variables (e.g. sample size, effect size, confidence intervals).
-
-4. **Human Validation**
-   Users review, edit, and confirm extracted values with highlighted source text.
-
-5. **Data Export**
-   Clean datasets are exported for downstream meta-analysis.
-
-6. **Summarization & Synthesis** *(optional)*
-   Structured summaries and cross-article comparisons are generated.
-
----
-
-## Example Extraction Schema
-
-```json
-{
-  "study_design": "string",
-  "sample_size": "integer",
-  "population": "string",
-  "effect_measure": "OR | RR | HR",
-  "effect_value": "float",
-  "ci_lower": "float",
-  "ci_upper": "float"
-}
+```text
+backend/     FastAPI app, services, schemas, tests
+frontend/    Next.js app
+docs/        architecture, setup, testing, and reference material
+scripts/     manual helpers and one-off local test scripts
+data/        uploaded PDFs in local development
+tmp/         temporary processing artifacts
 ```
 
-Each extracted field includes:
+## Core Workflow
 
-* Extracted value
-* Source quotation
-* Section reference
-* Confidence score
+1. Sign in with a magic link.
+2. Create or select a meta-analysis project.
+3. Choose an effect measure.
+4. Upload a PDF or ZIP of PDFs.
+5. Extract study metadata and effect data with the backend pipeline.
+6. Review results and export them as CSV.
 
----
+## Local Development
 
-## Technical Stack
+### Backend
 
-* **Backend:** Python, FastAPI
-* **NLP / ML:** Large Language Models, embeddings for similarity analysis
-* **Data Storage:** SQLite or PostgreSQL
-* **Frontend:** Streamlit (interactive review interface)
-* **Deployment:** Docker
+Install dependencies:
 
----
+```bash
+pip install -r requirements.txt
+```
 
-## Evaluation Strategy
+Run the API:
 
-The system is evaluated based on:
+```bash
+uvicorn backend.main:app --reload --port 8001
+```
 
-* Accuracy compared to manual data extraction
-* Completeness of extracted schemas
-* Transparency and traceability of outputs
-* Usability and time savings for users
+### Frontend
 
----
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-## Use Cases
+The frontend expects the backend at `http://localhost:8001` unless `NEXT_PUBLIC_API_URL` is set.
 
-* Systematic reviews
-* Meta-analyses
-* Rapid evidence synthesis
-* Methodological comparison across studies
+### Supporting Services
 
----
+Start MongoDB, Qdrant, and GROBID with Docker:
 
-## Limitations
+```bash
+docker compose up -d mongodb qdrant grobid
+```
 
-* The tool does **not** replace expert judgment.
-* Extraction quality depends on PDF quality and reporting clarity.
-* Cross-article synthesis is exploratory and not inferential.
+**Note:** GROBID requires at least 4GB RAM allocated to Docker. It may take 60-90 seconds to fully start on first run.
 
----
+## Testing
 
-## Future Work
+Run the backend test suite:
 
-* PRISMA-compliant workflows
-* Citation manager integration
-* Fine-tuned extraction models for specific study designs
-* Collaboration features for team-based reviews
+```bash
+pytest
+```
 
----
+Tests are currently scoped to `backend/tests`.
 
-## Project Status
+## Documentation
 
-This project is under active development and is intended as a **research-focused portfolio project** at the intersection of epidemiology, statistics, and machine learning.
+- [Docs index](docs/README.md)
+- [Architecture overview](docs/architecture/overview.md)
+- [API reference](docs/reference/api.md)
+- [Backend setup](docs/setup/BACKEND_SETUP.md)
 
----
+## Notes
 
-## Disclaimer
-
-This tool is designed to **assist** researchers and does not replace methodological expertise or critical appraisal. All extracted outputs should be reviewed before use in scientific work.
+- The repository is configured for local-development defaults. Review [backend/config.py](backend/config.py) and environment variables before deploying anywhere persistent.
+- Embeddings and some extraction paths depend on external model/provider credentials.
