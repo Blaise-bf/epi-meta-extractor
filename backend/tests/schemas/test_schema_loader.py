@@ -13,3 +13,4 @@ def test_schema_contains_required_fields():
     assert "study_id" in schema["metadata"]
     assert "sample_size" in schema["methods"]
     assert "effect_measure" in schema["analysis"]
+    assert "group_statistics" in schema["analysis"]
