@@ -11,13 +11,33 @@ class Settings(BaseSettings):
     QDRANT_API_KEY: Optional[str] = None
     QDRANT_COLLECTION_NAME: str = "epi_studies"
     
-    # LLM Provider Selection ("openai" or "deepseek")
+    # GROBID (scientific PDF parsing)
+    GROBID_URL: str = "http://localhost:8070"
+    GROBID_ENABLED: bool = True  # Set to False to disable GROBID
+    GROBID_TIMEOUT: float = 120.0
+    GROBID_MAX_RETRIES: int = 2
+    
+    # Marker PDF parser (alternative to GROBID)
+    MARKER_ENABLED: bool = True  # Set to False to disable Marker
+    MARKER_TIMEOUT: float = 300.0
+    MARKER_USE_LLM: bool = False  # Enable LLM enhancement for table/equation extraction
+    
+    # Unified PDF Parser configuration
+    PDF_PARSER_PRIMARY: str = "marker"  # "marker" | "grobid" | "pypdf"
+    PDF_PARSER_FALLBACK_CHAIN: str = "marker,grobid,pypdf"
+    
+    # LLM Provider Selection ("openai", "deepseek", or "ollama")
     LLM_PROVIDER: str = "deepseek"
     
     # DeepSeek Configuration (preferred for testing)
     DEEPSEEK_API_KEY: str = ""  # Get from https://platform.deepseek.com
     DEEPSEEK_MODEL: str = "deepseek-chat"
     DEEPSEEK_API_URL: str = "https://api.deepseek.com/v1"
+    
+    # Ollama Configuration (local or cloud — no API key needed for local)
+    OLLAMA_API_URL: str = "http://localhost:11434/v1"
+    OLLAMA_MODEL: str = "llama3.2"  # or mistral, codellama, etc.
+    OLLAMA_API_KEY: str = "ollama"  # Set to your cloud token if using Ollama Cloud
     
     # OpenAI Configuration (for extraction and embeddings)
     OPENAI_API_KEY: str = ""  # Required for OpenAI extraction or embeddings
