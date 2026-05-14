@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { extractErrorMessage } from "@/lib/errors";
 import { useAppStore } from "@/store/useAppStore";
 import { saveAuthToStorage } from "@/lib/auth";
 import { Spinner } from "@/components/ui/Skeleton";
@@ -60,12 +61,8 @@ export default function AuthPageContent() {
         const { data } = await api.auth.requestLink(normalizedEmail);
         if (data?.magic_link) setDevLink(data.magic_link);
         setStatus("Check your email for a sign-in link.");
-      } catch (err: any) {
-        const msg =
-          err?.response?.data?.detail ||
-          err?.response?.data?.message ||
-          "Could not send link. Please try again.";
-        setError(msg);
+      } catch (err: unknown) {
+        setError(extractErrorMessage(err, "Could not send link. Please try again."));
       } finally {
         setLoading(false);
       }

@@ -12,10 +12,10 @@ export const API_BASE_URL =
 const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   timeout: 120000,
-  headers: {
-    "Content-Type": "application/json",
-  },
 });
+// Axios auto-detects Content-Type:
+//   - plain objects → application/json
+//   - FormData     → multipart/form-data (browser sets boundary)
 
 // Request interceptor: attach auth token
 apiClient.interceptors.request.use(
@@ -71,6 +71,9 @@ export interface MetaAnalysis {
   details?: string;
   outcome?: string;
   exposure?: string;
+  population?: string;
+  comparison?: string;
+  study_design?: string;
   created_at?: string;
   study_count?: number;
 }
@@ -176,6 +179,9 @@ export const api = {
       details?: string;
       outcome?: string;
       exposure?: string;
+      population?: string;
+      comparison?: string;
+      study_design?: string;
     }) => apiClient.post("/meta-analyses", null, { params }),
     delete: (id: string) => apiClient.delete(`/meta-analyses/${id}`),
     getStudies: (id: string) =>
@@ -189,11 +195,8 @@ export const api = {
     exportCsv: () =>
       apiClient.get("/studies/export/csv", { responseType: "blob" }),
   },
-  upload: (formData: FormData, params: URLSearchParams) =>
-    apiClient.post("/upload", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-      params,
-    }),
+  upload: (formData: FormData, params: Record<string, string>) =>
+    apiClient.post("/upload", formData, { params }),
   batch: {
     getStatus: (batchId: string) =>
       apiClient.get<BatchStatus>(`/batch/${batchId}`),

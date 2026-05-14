@@ -4,6 +4,7 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { useAppStore } from "@/store/useAppStore";
 import { api } from "@/lib/api";
+import { extractErrorMessage } from "@/lib/errors";
 import { Spinner } from "@/components/ui/Skeleton";
 
 // ---------------------------------------------------------------------------
@@ -86,6 +87,9 @@ export const ZipUploader = memo(function ZipUploader() {
   const [success, setSuccess] = useState<string | null>(null);
   const [outcome, setOutcome] = useState(metaAnalysis?.outcome || "");
   const [exposure, setExposure] = useState(metaAnalysis?.exposure || "");
+  const [population, setPopulation] = useState(metaAnalysis?.population || "");
+  const [comparison, setComparison] = useState(metaAnalysis?.comparison || "");
+  const [studyDesign, setStudyDesign] = useState(metaAnalysis?.study_design || "");
   const [batchId, setBatchId] = useState<string | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -93,6 +97,9 @@ export const ZipUploader = memo(function ZipUploader() {
   useEffect(() => {
     if (metaAnalysis?.outcome) setOutcome(metaAnalysis.outcome);
     if (metaAnalysis?.exposure) setExposure(metaAnalysis.exposure);
+    if (metaAnalysis?.population) setPopulation(metaAnalysis.population);
+    if (metaAnalysis?.comparison) setComparison(metaAnalysis.comparison);
+    if (metaAnalysis?.study_design) setStudyDesign(metaAnalysis.study_design);
   }, [metaAnalysis]);
 
   // Poll for batch progress
@@ -174,8 +181,8 @@ export const ZipUploader = memo(function ZipUploader() {
         setError("Please select an effect type first.");
         return;
       }
-      if (!outcome.trim() || !exposure.trim()) {
-        setError("Please specify both outcome and exposure variables.");
+      if (!outcome.trim()) {
+        setError("Please specify the outcome variable.");
         return;
       }
       if (!acceptedFiles.length) {
@@ -197,12 +204,16 @@ export const ZipUploader = memo(function ZipUploader() {
       const formData = new FormData();
       formData.append("file", file);
 
-      const params = new URLSearchParams();
-      params.append("effect_type", effectType);
-      params.append("outcome", outcome.trim());
-      params.append("exposure", exposure.trim());
+      const params: Record<string, string> = {
+        effect_type: effectType,
+        outcome: outcome.trim(),
+      };
+      if (exposure.trim()) params.exposure = exposure.trim();
+      if (population.trim()) params.population = population.trim();
+      if (comparison.trim()) params.comparison = comparison.trim();
+      if (studyDesign.trim()) params.study_design = studyDesign.trim();
       if (metaAnalysis?.meta_analysis_id) {
-        params.append("meta_analysis_id", metaAnalysis.meta_analysis_id);
+        params.meta_analysis_id = metaAnalysis.meta_analysis_id;
       }
 
       setLoading(true);
@@ -233,17 +244,12 @@ export const ZipUploader = memo(function ZipUploader() {
           });
           setSuccess(`File processed! Study ID: ${data.study_id}`);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         setLoading(false);
-        const msg =
-          err?.response?.data?.detail ||
-          err?.response?.data?.message ||
-          err?.message ||
-          "Upload failed. Please try again.";
-        setError(msg);
+        setError(extractErrorMessage(err, "Upload failed. Please try again."));
       }
     },
-    [effectType, outcome, exposure, metaAnalysis, accessToken, addStudy, setProgress]
+    [effectType, outcome, exposure, population, comparison, studyDesign, metaAnalysis, accessToken, addStudy, setProgress]
   );
 
   const { getRootProps, getInputProps } = useDropzone({
@@ -287,14 +293,74 @@ export const ZipUploader = memo(function ZipUploader() {
             htmlFor="exposure"
             className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1"
           >
-            Exposure Variable *
+            {effectType === "PROPORTION"
+              ? "Exposure Variable (Not applicable for proportion)"
+              : "Exposure Variable (Optional)"}
           </label>
           <input
             id="exposure"
             type="text"
             value={exposure}
             onChange={(e) => setExposure(e.target.value)}
-            placeholder="e.g., smoking, obesity, physical activity"
+            placeholder={
+              effectType === "PROPORTION"
+                ? "Leave blank for proportion studies"
+                : "e.g., smoking, obesity, physical activity"
+            }
+            className="w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 bg-white/90 dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 dark:focus:ring-cyan-400 transition-colors"
+            disabled={loading}
+          />
+        </div>
+      </div>
+
+      <div className="mb-5 grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="space-y-1">
+          <label
+            htmlFor="population"
+            className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1"
+          >
+            Population (Optional)
+          </label>
+          <input
+            id="population"
+            type="text"
+            value={population}
+            onChange={(e) => setPopulation(e.target.value)}
+            placeholder="e.g., adults with T2DM"
+            className="w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 bg-white/90 dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 dark:focus:ring-cyan-400 transition-colors"
+            disabled={loading}
+          />
+        </div>
+        <div className="space-y-1">
+          <label
+            htmlFor="comparison"
+            className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1"
+          >
+            Comparison (Optional)
+          </label>
+          <input
+            id="comparison"
+            type="text"
+            value={comparison}
+            onChange={(e) => setComparison(e.target.value)}
+            placeholder="e.g., metformin vs placebo"
+            className="w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 bg-white/90 dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 dark:focus:ring-cyan-400 transition-colors"
+            disabled={loading}
+          />
+        </div>
+        <div className="space-y-1">
+          <label
+            htmlFor="studyDesign"
+            className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1"
+          >
+            Study Design (Optional)
+          </label>
+          <input
+            id="studyDesign"
+            type="text"
+            value={studyDesign}
+            onChange={(e) => setStudyDesign(e.target.value)}
+            placeholder="e.g., RCT, cohort"
             className="w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 bg-white/90 dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 dark:focus:ring-cyan-400 transition-colors"
             disabled={loading}
           />

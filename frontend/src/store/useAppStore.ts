@@ -11,6 +11,9 @@ export interface MetaAnalysis {
   details?: string;
   outcome?: string;
   exposure?: string;
+  population?: string;
+  comparison?: string;
+  study_design?: string;
   created_at?: string;
   study_count?: number;
 }

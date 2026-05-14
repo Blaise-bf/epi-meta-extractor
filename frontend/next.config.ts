@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
+  // Required for Docker multi-stage build (outputs standalone server.js)
+  output: "standalone",
   // Performance optimizations
   experimental: {
     optimizePackageImports: [
