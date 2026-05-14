@@ -1,0 +1,64 @@
+# Docker ignore file for production builds
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environments
+.env
+.env.*
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Frontend
+frontend/.agents/
+frontend/.claude/
+frontend/.continue/
+frontend/skills-lock.json
+frontend/.next/
+frontend/node_modules/
+frontend/dist/
+
+# Python lock files
+uv.lock
+poetry.lock
+
+# Runtime data
+tmp/
+backend/tmp/
+data/raw_pdfs/
+
+# Coverage
+coverage/
+htmlcov/
+
+# Generated files
+grobid_output.xml
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+!README.md
+
+# Notebooks
+notebooks/
+*.ipynb
+
+# Scripts (keep for deployment)
+!scripts/
+
+# Nginx config (keep)
+!nginx/

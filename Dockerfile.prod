@@ -1,0 +1,41 @@
+# Production Dockerfile for FastAPI Backend
+# Uses Gunicorn with Uvicorn workers for production performance
+
+FROM python:3.13-bookworm
+
+WORKDIR /app
+
+# Install system dependencies for PDF processing
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libffi-dev \
+    libssl-dev \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install gunicorn for production
+RUN pip install --no-cache-dir gunicorn
+
+# Copy application code
+COPY backend/ ./backend/
+COPY data/ ./data/
+
+# Create necessary directories
+RUN mkdir -p data/raw_pdfs tmp
+
+# Create non-root user for security
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
+# Expose port
+EXPOSE 8000
+
+# Health check endpoint (FastAPI auto-provides /health when using lifespan)
+# We add a simple wget-based healthcheck in docker-compose
+
+# Run with Gunicorn + Uvicorn workers
+# Workers = 2-4 x $(nproc) + 1, but capped for memory
+CMD ["gunicorn", "backend.app:app", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--workers", "4", "--worker-class", "uvicorn.workers.UvicornWorker", "--access-logfile", "-", "--error-logfile", "-", "--capture-output", "--enable-stdio-inheritance"]

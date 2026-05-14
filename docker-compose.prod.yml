@@ -1,0 +1,178 @@
+# Production Docker Compose for Digital Ocean App Platform
+# This file is optimized for deployment on Digital Ocean with:
+# - Nginx reverse proxy with SSL/TLS
+# - Production-optimized backend (no reload, gunicorn)
+# - Next.js frontend served via Nginx
+# - MongoDB and Qdrant with persistent volumes
+# - Health checks and restart policies
+
+services:
+  # -----------------------------------------------------------------
+  # Nginx Reverse Proxy
+  # -----------------------------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: epi-meta-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+    networks:
+      - epi-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # -----------------------------------------------------------------
+  # Next.js Frontend (Production Build)
+  # -----------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: epi-meta-frontend
+    expose:
+      - "3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-/api}
+    networks:
+      - epi-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # -----------------------------------------------------------------
+  # FastAPI Backend (Production)
+  # -----------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: epi-meta-backend
+    expose:
+      - "8000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    environment:
+      # MongoDB
+      MONGODB_URI: ${MONGODB_URI}
+      MONGODB_DB_NAME: ${MONGODB_DB_NAME:-epi_meta_extractor}
+      # Qdrant
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      QDRANT_API_KEY: ${QDRANT_API_KEY}
+      QDRANT_COLLECTION_NAME: ${QDRANT_COLLECTION_NAME:-epi_studies}
+      # LLM Provider
+      LLM_PROVIDER: ${LLM_PROVIDER:-deepseek}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+      DEEPSEEK_API_URL: ${DEEPSEEK_API_URL:-https://api.deepseek.com/v1}
+      OLLAMA_API_URL: ${OLLAMA_API_URL}
+      OLLAMA_MODEL: ${OLLAMA_MODEL}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY}
+      # PDF Parser
+      PDF_PARSER_PRIMARY: ${PDF_PARSER_PRIMARY:-marker}
+      PDF_PARSER_FALLBACK_CHAIN: ${PDF_PARSER_FALLBACK_CHAIN:-marker,pypdf}
+      MARKER_ENABLED: ${MARKER_ENABLED:-true}
+      MARKER_TIMEOUT: ${MARKER_TIMEOUT:-300}
+      MARKER_USE_LLM: ${MARKER_USE_LLM:-false}
+      GROBID_ENABLED: ${GROBID_ENABLED:-false}
+      # Auth
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-1440}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-30}
+      MAGIC_LINK_EXPIRE_MINUTES: ${MAGIC_LINK_EXPIRE_MINUTES:-15}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      # SMTP
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_FROM: ${SMTP_FROM}
+      SMTP_TLS: ${SMTP_TLS:-true}
+      # App
+      DEBUG: "false"
+    volumes:
+      - app_data:/app/data
+      - app_tmp:/app/tmp
+    networks:
+      - epi-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # -----------------------------------------------------------------
+  # MongoDB
+  # -----------------------------------------------------------------
+  mongodb:
+    image: mongo:7.0
+    container_name: epi-meta-mongodb
+    expose:
+      - "27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGODB_DB_NAME:-epi_meta_extractor}
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - epi-network
+    restart: unless-stopped
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # -----------------------------------------------------------------
+  # Qdrant Vector Database
+  # -----------------------------------------------------------------
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: epi-meta-qdrant
+    expose:
+      - "6333"
+      - "6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT_API_KEY: ${QDRANT_API_KEY}
+    networks:
+      - epi-network
+    restart: unless-stopped
+
+volumes:
+  mongodb_data:
+  qdrant_data:
+  app_data:
+  app_tmp:
+  nginx_logs:
+
+networks:
+  epi-network:
+    driver: bridge
