@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import Dict, Any, Optional, List, Any as AnyType
+from typing import Dict, Any, Optional, List
 from openai import OpenAI
 from backend.config import settings
 from backend.models.schemas import EffectMeasure
@@ -25,10 +25,12 @@ except ImportError:
         class RecursiveCharacterTextSplitter:
             def __init__(self, **kwargs): pass
             def split_documents(self, docs): return docs
-from langchain_community.vectorstores import FAISS
+from qdrant_client import QdrantClient
+from qdrant_client.models import Distance, VectorParams, PointStruct
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from backend.services.structured_output import get_effect_schema, MetadataOutput, MethodsOutput
 try:
     from langchain_core.documents import Document
 except ImportError:
@@ -124,7 +126,7 @@ STUDY TEXT:
         )
 
     def _build_rag_chain(self, documents: List[str]) -> Optional[AnyType]:
-        """Build a LangChain RAG chain for retrieval-augmented extraction"""
+        """Build a LangChain RAG chain using Qdrant in-memory vector store."""
         try:
             docs = [Document(page_content=doc) for doc in documents]
             chunks = self.text_splitter.split_documents(docs)
@@ -132,8 +134,38 @@ STUDY TEXT:
             if not chunks:
                 return None
 
-            vectorstore = FAISS.from_documents(chunks, self.embeddings)
-            retriever = vectorstore.as_retriever(search_type='similarity', search_kwargs={"k": 4})
+            # Use in-memory Qdrant instead of FAISS
+            client = QdrantClient(":memory:")
+            collection_name = "temp_rag"
+
+            # Create collection
+            client.create_collection(
+                collection_name=collection_name,
+                vectors_config=VectorParams(
+                    size=1536,  # OpenAI embedding dimension
+                    distance=Distance.COSINE
+                )
+            )
+
+            # Embed and upsert chunks
+            texts = [doc.page_content for doc in chunks]
+            embeddings = self.embeddings.embed_documents(texts)
+
+            points = [
+                PointStruct(id=i, vector=embeddings[i], payload={"text": texts[i]})
+                for i in range(len(texts))
+            ]
+            client.upsert(collection_name=collection_name, points=points)
+
+            # Build retriever function
+            def retriever(query: str, k: int = 10):
+                query_embedding = self.embeddings.embed_query(query)
+                results = client.search(
+                    collection_name=collection_name,
+                    query_vector=query_embedding,
+                    limit=k
+                )
+                return [Document(page_content=r.payload["text"]) for r in results]
 
             return retriever
         except Exception as e:
@@ -146,7 +178,7 @@ STUDY TEXT:
         queries: List[str],
         top_k: int = 4
     ) -> str:
-        """Retrieve relevant context using FAISS vector store with section-specific queries."""
+        """Retrieve relevant context using Qdrant in-memory vector store with section-specific queries."""
         try:
             retriever = self._build_rag_chain([text])
 
@@ -154,7 +186,7 @@ STUDY TEXT:
                 return text
 
             combined_query = " ".join(queries)
-            retrieved_docs = retriever.invoke(combined_query)
+            retrieved_docs = retriever(combined_query, k=top_k)
 
             if retrieved_docs:
                 relevant_text = "\n\n".join([doc.page_content for doc in retrieved_docs])
@@ -172,6 +204,9 @@ STUDY TEXT:
         section: str,
         outcome: Optional[str] = None,
         exposure: Optional[str] = None,
+        population: Optional[str] = None,
+        comparison: Optional[str] = None,
+        study_design: Optional[str] = None,
         effect_type: Optional[EffectMeasure] = None,
         pre_filled_metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
@@ -185,9 +220,15 @@ STUDY TEXT:
                 queries = [outcome] + queries
             if exposure:
                 queries = [exposure] + queries
+            if population:
+                queries = [population] + queries
+            if comparison:
+                queries = [comparison] + queries
+            if study_design:
+                queries = [study_design] + queries
 
         # Retrieve relevant context
-        relevant_text = self._retrieve_relevant_context(text, queries, top_k=3)
+        relevant_text = self._retrieve_relevant_context(text, queries, top_k=10)
 
         # Limit text length to avoid token limits
         max_chars = 5000
@@ -211,21 +252,66 @@ STUDY TEXT:
             extraction_prompt = ANALYSIS_EXTRACTION_PROMPT
             system_message = ANALYSIS_SYSTEM_MESSAGE
 
-        # Add outcome/exposure context for methods/analysis
-        if section in ("methods", "analysis") and outcome and exposure:
-            context = f"""
+        # Build PICO context for methods/analysis
+        if section in ("methods", "analysis"):
+            context_parts = []
+            if outcome:
+                context_parts.append(f"- PRIMARY OUTCOME: {outcome}")
+            if exposure:
+                context_parts.append(f"- PRIMARY EXPOSURE: {exposure}")
+            if population:
+                context_parts.append(f"- TARGET POPULATION: {population}")
+            if comparison:
+                context_parts.append(f"- COMPARISON / INTERVENTION: {comparison}")
+            if study_design:
+                context_parts.append(f"- EXPECTED STUDY DESIGN: {study_design}")
 
-IMPORTANT CONTEXT:
-You are tasked with extracting data related to:
-- PRIMARY OUTCOME: {outcome}
-- PRIMARY EXPOSURE: {exposure}
+            if context_parts:
+                context = "\n\nIMPORTANT CONTEXT:\nYou are tasked with extracting data related to:\n" + "\n".join(context_parts) + "\n\nBe flexible with terminology and partial matches.\nExtract data if the study examines ANY component of the requested outcome AND the requested exposure."
+                extraction_prompt = extraction_prompt + context
 
-Be flexible with terminology and partial matches.
-Extract data if the study examines ANY component of the requested outcome AND the requested exposure.
-"""
-            extraction_prompt = extraction_prompt + context
+        # Use structured output for OpenAI provider to enforce schema conformity
+        if self.provider not in ("deepseek", "ollama"):
+            try:
+                if section == "metadata":
+                    schema = MetadataOutput
+                    wrapper_key = "metadata"
+                elif section == "methods":
+                    schema = MethodsOutput
+                    wrapper_key = "methods"
+                elif section == "analysis" and effect_type:
+                    schema = get_effect_schema(effect_type.value)
+                    wrapper_key = "analysis"
+                else:
+                    schema = None
+                    wrapper_key = None
 
-        # Extract using the appropriate provider
+                if schema:
+                    structured_llm = self.llm.with_structured_output(schema)
+
+                    prompt = ChatPromptTemplate.from_messages([
+                        ("system", system_message),
+                        ("user", """{extraction_instructions}
+
+STUDY TEXT:
+=====================================
+{study_text}""")
+                    ])
+
+                    chain = prompt | structured_llm
+
+                    result = await chain.ainvoke({
+                        "extraction_instructions": extraction_prompt,
+                        "study_text": relevant_text
+                    })
+
+                    # with_structured_output returns a dict directly
+                    if wrapper_key:
+                        return {wrapper_key: result}
+            except Exception as e:
+                print(f"Structured output failed for {section}: {e}, falling back to raw extraction")
+
+        # Extract using the appropriate provider (fallback or non-structured)
         if self.provider in ("deepseek", "ollama"):
             response_text = self._extract_with_client(
                 extraction_prompt, relevant_text, system_message
@@ -255,10 +341,14 @@ Extract data if the study examines ANY component of the requested outcome AND th
         self,
         text: str,
         effect_type: EffectMeasure,
-        outcome: str = None,
-        exposure: str = None,
+        outcome: Optional[str] = None,
+        exposure: Optional[str] = None,
+        population: Optional[str] = None,
+        comparison: Optional[str] = None,
+        study_design: Optional[str] = None,
         use_semantic_search: bool = True,
         pre_filled_metadata: Optional[Dict[str, Any]] = None,
+        use_rag_chains: bool = False,
     ) -> Dict[str, Any]:
         """Extract structured data from study text using parallel RAG-enhanced LLM extraction.
 
@@ -268,7 +358,55 @@ Extract data if the study examines ANY component of the requested outcome AND th
         3. Analysis extraction (effect measure, value, CI, group stats, effect-size-specific data)
 
         If any parallel chain fails, falls back to single-pass extraction.
+
+        Args:
+            text: Full study text
+            effect_type: Type of effect measure
+            outcome: Primary outcome
+            exposure: Primary exposure
+            population: Target population
+            comparison: Comparison/intervention
+            study_design: Expected study design
+            use_semantic_search: Whether to use semantic search for context retrieval
+            pre_filled_metadata: Metadata pre-filled from GROBID
+            use_rag_chains: Whether to use the new LangChain RAG chains (default: False for backward compatibility)
         """
+        # Use new RAG chains if enabled
+        if use_rag_chains:
+            try:
+                from backend.services.rag.chains import run_parallel_extraction
+                result = await run_parallel_extraction(
+                    study_text=text,
+                    effect_type=effect_type.value,
+                    outcome=outcome,
+                    exposure=exposure,
+                    population=population,
+                    comparison=comparison,
+                    study_design=study_design,
+                )
+                # Merge pre-filled metadata
+                if pre_filled_metadata and isinstance(pre_filled_metadata, dict):
+                    if "metadata" not in result or not isinstance(result.get("metadata"), dict):
+                        result["metadata"] = {}
+                    metadata = result["metadata"]
+                    for key, value in pre_filled_metadata.items():
+                        if value and (not metadata.get(key) or key in ("title", "year", "doi")):
+                            metadata[key] = value
+
+                # Ensure effect_measure_type is included
+                result["effect_measure_type"] = effect_type.value
+
+                # Apply effect-size-specific agent for validation and computation
+                from backend.services.agents import process_with_agent
+                result = process_with_agent(effect_type.value, result)
+
+                return result
+            except Exception as e:
+                print(f"RAG chain extraction failed: {e}, falling back to legacy extraction")
+                import traceback
+                traceback.print_exc()
+
+        # Legacy extraction path
         try:
             # Launch 3 parallel extraction tasks
             metadata_task = self._extract_section(
@@ -277,11 +415,13 @@ Extract data if the study examines ANY component of the requested outcome AND th
             )
             methods_task = self._extract_section(
                 text, "methods",
-                outcome=outcome, exposure=exposure
+                outcome=outcome, exposure=exposure,
+                population=population, comparison=comparison, study_design=study_design
             )
             analysis_task = self._extract_section(
                 text, "analysis",
                 outcome=outcome, exposure=exposure,
+                population=population, comparison=comparison, study_design=study_design,
                 effect_type=effect_type
             )
 
@@ -518,7 +658,7 @@ Extract data if the study examines ANY component of the requested outcome AND th
                 elif isinstance(analysis["effect_value"], str):
                     try:
                         analysis["effect_value"] = float(analysis["effect_value"])
-                    except:
+                    except (ValueError, TypeError):
                         del analysis["effect_value"]
 
             # Handle ci_lower
@@ -528,7 +668,7 @@ Extract data if the study examines ANY component of the requested outcome AND th
                 elif isinstance(analysis["ci_lower"], str):
                     try:
                         analysis["ci_lower"] = float(analysis["ci_lower"])
-                    except:
+                    except (ValueError, TypeError):
                         del analysis["ci_lower"]
 
             # Handle ci_upper
@@ -538,7 +678,7 @@ Extract data if the study examines ANY component of the requested outcome AND th
                 elif isinstance(analysis["ci_upper"], str):
                     try:
                         analysis["ci_upper"] = float(analysis["ci_upper"])
-                    except:
+                    except (ValueError, TypeError):
                         del analysis["ci_upper"]
 
             # Handle p_value
@@ -548,7 +688,7 @@ Extract data if the study examines ANY component of the requested outcome AND th
                 elif isinstance(analysis["p_value"], str):
                     try:
                         analysis["p_value"] = float(analysis["p_value"])
-                    except:
+                    except (ValueError, TypeError):
                         del analysis["p_value"]
 
             # Handle proportion_data nested fields
@@ -558,13 +698,13 @@ Extract data if the study examines ANY component of the requested outcome AND th
                     if key in pd and isinstance(pd[key], str):
                         try:
                             pd[key] = int(pd[key])
-                        except:
+                        except (ValueError, TypeError):
                             pd[key] = None
                 for key in ["proportion", "se", "ci_lower", "ci_upper"]:
                     if key in pd and isinstance(pd[key], str):
                         try:
                             pd[key] = float(pd[key])
-                        except:
+                        except (ValueError, TypeError):
                             pd[key] = None
 
             # Handle two_by_two_table nested fields
@@ -574,7 +714,7 @@ Extract data if the study examines ANY component of the requested outcome AND th
                     if key in t2 and isinstance(t2[key], str):
                         try:
                             t2[key] = int(t2[key])
-                        except:
+                        except (ValueError, TypeError):
                             t2[key] = None
 
             # Handle continuous_data nested fields
@@ -584,13 +724,13 @@ Extract data if the study examines ANY component of the requested outcome AND th
                     if key in cd and isinstance(cd[key], str):
                         try:
                             cd[key] = int(cd[key])
-                        except:
+                        except (ValueError, TypeError):
                             cd[key] = None
                 for key in ["exposed_mean", "exposed_sd", "control_mean", "control_sd"]:
                     if key in cd and isinstance(cd[key], str):
                         try:
                             cd[key] = float(cd[key])
-                        except:
+                        except (ValueError, TypeError):
                             cd[key] = None
 
             # Handle survival_data nested fields
@@ -600,13 +740,13 @@ Extract data if the study examines ANY component of the requested outcome AND th
                     if key in sd and isinstance(sd[key], str):
                         try:
                             sd[key] = int(sd[key])
-                        except:
+                        except (ValueError, TypeError):
                             sd[key] = None
                 for key in ["person_time_exposed", "person_time_control", "rate_exposed", "rate_control"]:
                     if key in sd and isinstance(sd[key], str):
                         try:
                             sd[key] = float(sd[key])
-                        except:
+                        except (ValueError, TypeError):
                             sd[key] = None
 
         return data

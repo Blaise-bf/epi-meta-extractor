@@ -2,49 +2,59 @@ from pydantic_settings import BaseSettings
 from typing import Optional
 
 class Settings(BaseSettings):
-    # MongoDB
-    MONGODB_URI: str = "mongodb+srv://farmtodo:farmtododemo@cluster0.aze7zmk.mongodb.net/todo?appName=Cluster0"
-    MONGODB_DB_NAME: str = "todo"
-    
+    # MongoDB — MUST be set via environment variable or .env file
+    MONGODB_URI: str = "mongodb://localhost:27017/epi_meta_extractor"
+    MONGODB_DB_NAME: str = "epi_meta_extractor"
+
     # Qdrant
     QDRANT_URL: str = "http://localhost:6333"
     QDRANT_API_KEY: Optional[str] = None
     QDRANT_COLLECTION_NAME: str = "epi_studies"
-    
+
     # GROBID (scientific PDF parsing)
     GROBID_URL: str = "http://localhost:8070"
     GROBID_ENABLED: bool = True  # Set to False to disable GROBID
     GROBID_TIMEOUT: float = 120.0
     GROBID_MAX_RETRIES: int = 2
-    
+
     # Marker PDF parser (alternative to GROBID)
     MARKER_ENABLED: bool = True  # Set to False to disable Marker
     MARKER_TIMEOUT: float = 300.0
     MARKER_USE_LLM: bool = False  # Enable LLM enhancement for table/equation extraction
-    
+
     # Unified PDF Parser configuration
     PDF_PARSER_PRIMARY: str = "marker"  # "marker" | "grobid" | "pypdf"
     PDF_PARSER_FALLBACK_CHAIN: str = "marker,grobid,pypdf"
-    
+
     # LLM Provider Selection ("openai", "deepseek", or "ollama")
     LLM_PROVIDER: str = "deepseek"
-    
+
     # DeepSeek Configuration (preferred for testing)
     DEEPSEEK_API_KEY: str = ""  # Get from https://platform.deepseek.com
     DEEPSEEK_MODEL: str = "deepseek-chat"
     DEEPSEEK_API_URL: str = "https://api.deepseek.com/v1"
-    
+
     # Ollama Configuration (local or cloud — no API key needed for local)
     OLLAMA_API_URL: str = "http://localhost:11434/v1"
     OLLAMA_MODEL: str = "llama3.2"  # or mistral, codellama, etc.
     OLLAMA_API_KEY: str = "ollama"  # Set to your cloud token if using Ollama Cloud
-    
+
     # OpenAI Configuration (for extraction and embeddings)
     OPENAI_API_KEY: str = ""  # Required for OpenAI extraction or embeddings
     EMBEDDING_MODEL: str = "text-embedding-3-small"
     EMBEDDING_DIMENSION: int = 1536  # For text-embedding-3-small
 
-    
+    # Gemini Configuration (for embeddings alternative)
+    GEMINI_API_KEY: str = ""  # Get from https://aistudio.google.com/app/apikey
+    GEMINI_EMBEDDING_MODEL: str = "models/embedding-001"  # or models/text-embedding-004
+    EMBEDDING_PROVIDER: str = "openai"  # "openai" | "gemini"
+
+    # RAG Configuration
+    USE_RAG_CHAINS: bool = False  # Enable LangChain RAG chains for extraction
+    RAG_CHUNK_SIZE: int = 1000
+    RAG_CHUNK_OVERLAP: int = 200
+    RAG_TOP_K: int = 10
+
     # App
     UPLOAD_DIR: str = "data/raw_pdfs"
     TEMP_DIR: str = "tmp"
@@ -66,13 +76,11 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = ""
     SMTP_FROM: str = "no-reply@epimeta.local"
     SMTP_TLS: bool = True
-    
+
     class Config:
         env_file = ".env"
         case_sensitive = True
         extra = "ignore"  # Ignore extra fields from .env file
-
-    
 
 
 settings = Settings()

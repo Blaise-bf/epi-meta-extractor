@@ -23,6 +23,7 @@ dependencies = [
     "qdrant-client>=1.9.2",
     "uvicorn>=0.24.0",
     "marker-pdf>=1.6.1",
+    "pandas>=3.0.2",
 ]
 
 [project.optional-dependencies]

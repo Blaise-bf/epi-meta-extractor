@@ -310,12 +310,12 @@ class ValidationService:
 
 class FileHashService:
     """Generate and manage file hashes for duplicate detection"""
-    
+
     @staticmethod
     def compute_hash(file_contents: bytes) -> str:
         """Compute SHA256 hash of file"""
         return hashlib.sha256(file_contents).hexdigest()
-    
+
     @staticmethod
     def compute_text_hash(text: str) -> str:
         """Compute hash of extracted text (more lenient for PDFs)"""
@@ -325,7 +325,7 @@ class FileHashService:
 
 class ConsistencyService:
     """Ensure consistent extraction results"""
-    
+
     @staticmethod
     def compare_extractions(
         extraction1: Dict[str, Any],
@@ -333,7 +333,7 @@ class ConsistencyService:
     ) -> Dict[str, Any]:
         """
         Compare two extractions for consistency
-        
+
         Returns:
         {
             "similarity": 0-1,
@@ -343,7 +343,7 @@ class ConsistencyService:
         """
         different = {}
         identical = []
-        
+
         # Compare key fields
         fields_to_compare = [
             ("metadata.title", "title"),
@@ -353,7 +353,7 @@ class ConsistencyService:
             ("analysis.effect_measure", "effect"),
             ("analysis.effect_value", "value"),
         ]
-        
+
         def get_nested(data: Dict, path: str):
             keys = path.split(".")
             val = data
@@ -363,20 +363,20 @@ class ConsistencyService:
                 else:
                     return None
             return val
-        
+
         for path, label in fields_to_compare:
             val1 = get_nested(extraction1, path)
             val2 = get_nested(extraction2, path)
-            
+
             if val1 == val2:
                 identical.append(label)
             else:
                 different[label] = {"extraction1": val1, "extraction2": val2}
-        
+
         # Calculate similarity
         total = len(fields_to_compare)
         similarity = len(identical) / total if total > 0 else 0
-        
+
         return {
             "similarity": round(similarity, 2),
             "identical_fields": identical,

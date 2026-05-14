@@ -12,7 +12,9 @@ pypdf==4.0.1
 
 # Optional: Marker PDF parser (high-quality PDF-to-markdown)
 # Install with: pip install marker-pdf
-# marker-pdf>=1.0.0
+# Requires: marker-pdf>=1.10.0, surya-ocr>=0.17.0
+marker-pdf>=1.10.0
+surya-ocr>=0.17.0
 
 # Optional: MinerU PDF parser (OpenDataLab - alternative to Marker)
 # Install with: pip install magic-pdf
@@ -33,6 +35,10 @@ langchain-text-splitters==0.3.2
 # Embeddings & LLM
 openai==1.54.0
 httpx<0.28  # Required for compatibility with openai 1.54.0
+
+# Optional: Gemini embeddings (alternative to OpenAI)
+# Install with: pip install google-generativeai
+# google-generativeai>=0.8.0
 
 # Utilities
 python-dotenv==1.0.0

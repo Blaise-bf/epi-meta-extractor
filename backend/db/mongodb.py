@@ -14,8 +14,6 @@ db_instance = Database()
 
 async def connect_to_mongodb():
     """Connect to MongoDB"""
-    import asyncio
-    
     db_instance.client = AsyncIOMotorClient(
         settings.MONGODB_URI,
         serverSelectionTimeoutMS=5000,
@@ -27,7 +25,7 @@ async def connect_to_mongodb():
         waitQueueTimeoutMS=5000,  # Max time to wait for available connection
     )
     db_instance.db = db_instance.client[settings.MONGODB_DB_NAME]
-    
+
     # Verify connection by pinging
     try:
         await db_instance.db.command('ping')
@@ -35,13 +33,13 @@ async def connect_to_mongodb():
     except Exception as e:
         print(f"✗ Failed to connect to MongoDB: {e}")
         raise
-    
+
     # Create indexes for studies
     try:
         try:
             await db_instance.db["studies"].drop_index("filename_1")
         except Exception:
-            pass
+            pass  # Index may not exist
         await db_instance.db["studies"].create_index(
             [("owner_id", 1), ("filename", 1)],
             unique=True
@@ -52,7 +50,7 @@ async def connect_to_mongodb():
         await db_instance.db["studies"].create_index("confidence")  # For filtering
         await db_instance.db["studies"].create_index("effect_type")  # For filtering
         await db_instance.db["studies"].create_index("owner_id")
-        
+
         # Create indexes for batch jobs
         await db_instance.db["batch_jobs"].create_index("batch_id", unique=True)
         await db_instance.db["batch_jobs"].create_index("status")
@@ -69,7 +67,7 @@ async def connect_to_mongodb():
         # Meta-analyses
         await db_instance.db["meta_analyses"].create_index("meta_analysis_id", unique=True)
         await db_instance.db["meta_analyses"].create_index("owner_id")
-        
+
         print("✓ Created MongoDB indexes")
     except Exception as e:
         print(f"⚠ Warning: Could not create indexes: {e}")
@@ -105,7 +103,7 @@ async def get_study(study_id: str, owner_id: Optional[str] = None) -> Optional[D
         return await db_instance.db["studies"].find_one(
             query
         )
-    except:
+    except Exception:
         query = {"filename": study_id}
         if owner_id:
             query["owner_id"] = owner_id
@@ -137,7 +135,7 @@ async def update_study(study_id: str, update_data: Dict[str, Any]) -> bool:
             {"$set": update_data}
         )
         return result.modified_count > 0
-    except:
+    except Exception:
         return False
 
 async def delete_study(study_id: str) -> bool:
@@ -147,7 +145,7 @@ async def delete_study(study_id: str) -> bool:
             {"_id": ObjectId(study_id)}
         )
         return result.deleted_count > 0
-    except:
+    except Exception:
         return False
 
 async def search_studies(query: Dict[str, Any], owner_id: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -187,7 +185,7 @@ async def list_all_batch_jobs(limit: int = 50) -> List[Dict[str, Any]]:
     cursor = db_instance.db["batch_jobs"].find().sort("created_at", -1).limit(limit)
     return await cursor.to_list(length=limit)
 # Meta-Analysis Functions
-async def create_meta_analysis(meta_analysis_id: str, title: str, details: Optional[str] = None, outcome: Optional[str] = None, exposure: Optional[str] = None, owner_id: Optional[str] = None) -> Dict[str, Any]:
+async def create_meta_analysis(meta_analysis_id: str, title: str, details: Optional[str] = None, outcome: Optional[str] = None, exposure: Optional[str] = None, population: Optional[str] = None, comparison: Optional[str] = None, study_design: Optional[str] = None, owner_id: Optional[str] = None) -> Dict[str, Any]:
     """Create a new meta-analysis project"""
     meta_analysis = {
         "meta_analysis_id": meta_analysis_id,
@@ -195,6 +193,9 @@ async def create_meta_analysis(meta_analysis_id: str, title: str, details: Optio
         "details": details,
         "outcome": outcome,
         "exposure": exposure,
+        "population": population,
+        "comparison": comparison,
+        "study_design": study_design,
         "owner_id": owner_id,
         "created_at": datetime.utcnow(),
         "updated_at": datetime.utcnow(),
@@ -259,13 +260,13 @@ async def delete_meta_analysis(meta_analysis_id: str, owner_id: Optional[str] = 
         query: Dict[str, Any] = {"meta_analysis_id": meta_analysis_id}
         if owner_id:
             query["owner_id"] = owner_id
-        
+
         # Delete all studies associated with this meta-analysis
         await db_instance.db["studies"].delete_many(query)
-        
+
         # Delete the meta-analysis itself
         result = await db_instance.db["meta_analyses"].delete_one(query)
-        
+
         return result.deleted_count > 0
     except Exception as e:
         print(f"Error deleting meta-analysis {meta_analysis_id}: {e}")

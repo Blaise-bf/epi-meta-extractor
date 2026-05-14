@@ -21,7 +21,7 @@ RETURN THIS EXACT SCHEMA:
 
 FIELD RULES:
 • TITLE (metadata.title): MANDATORY — never null, never empty string. Use the full title as written.
-• AUTHORS: Extract the first author or all authors as a comma-separated string.
+• AUTHORS: Extract ONLY the first author (e.g., "Smith J"). Do NOT include multiple authors, "et al.", or commas.
 • YEAR: Extract the publication year. Must be a 4-digit integer between 1900 and 2100.
 • COUNTRY: Extract the country where the study was conducted (e.g., from the methods section or author affiliations).
 • CONTINENT: Optional. Infer from the country if possible (e.g., "United States" → "North America", "Nigeria" → "Africa").
@@ -31,7 +31,7 @@ EXAMPLE:
   "metadata": {
     "study_id": "10.1000/j.example.2024.01",
     "title": "Smoking and Lung Cancer Risk: A Global Cohort Study",
-    "authors": "Smith J, Doe A",
+    "authors": "Smith J",
     "year": 2024,
     "journal": "Lancet Oncology",
     "country": "United Kingdom",

@@ -14,7 +14,7 @@ class Metadata(BaseModel):
     """Study metadata - only includes fields found in the document"""
     study_id: Optional[str] = Field(None, description="Study identifier from document")
     title: Optional[str] = Field(None, description="Study title")
-    authors: Optional[str] = Field(None, description="Comma-separated author names")
+    authors: Optional[str] = Field(None, description="First author name only (e.g., 'Smith J')")
     year: Optional[int] = Field(None, description="Publication year")
     journal: Optional[str] = Field(None, description="Journal name")
 
@@ -44,7 +44,7 @@ class Analysis(BaseModel):
     outcome: Optional[str] = Field(None, description="Outcome/disease description")
     effect_measure: Optional[str] = Field(
         None,
-        description="Type of effect measure (OR, RR, HR, MD, SMD)"
+        description="Type of effect measure (OR, RR, HR, MD, SMD, PROPORTION)"
     )
     effect_value: Optional[float] = Field(None, description="Point estimate of effect measure")
     ci_lower: Optional[float] = Field(None, description="95% confidence interval lower bound")
@@ -57,6 +57,23 @@ class Analysis(BaseModel):
     adjustment_variables: Optional[List[str]] = Field(
         None,
         description="Variables that were adjusted for in the analysis"
+    )
+    # Effect-measure-specific nested data blocks
+    proportion_data: Optional[dict] = Field(
+        None,
+        description="Proportion-specific data (events, sample_size, proportion, se, ci_lower, ci_upper)"
+    )
+    two_by_two_table: Optional[dict] = Field(
+        None,
+        description="2x2 contingency table (a, b, c, d) for OR/RR"
+    )
+    continuous_data: Optional[dict] = Field(
+        None,
+        description="Continuous data (exposed_mean, exposed_sd, exposed_n, control_mean, control_sd, control_n) for MD/SMD"
+    )
+    survival_data: Optional[dict] = Field(
+        None,
+        description="Survival data (events_exposed, events_control, person_time_exposed, person_time_control, rate_exposed, rate_control) for HR"
     )
 
     class Config:

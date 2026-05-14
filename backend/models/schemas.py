@@ -86,7 +86,7 @@ class ExtractedStudy(BaseModel):
     used_grobid: bool = Field(
         False, description="Whether GROBID was used for PDF parsing"
     )
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -122,12 +122,15 @@ class MetaAnalysis(BaseModel):
     details: Optional[str] = Field(None, description="Optional details/notes about the meta-analysis")
     outcome: Optional[str] = Field(None, description="Outcome variable for this meta-analysis")
     exposure: Optional[str] = Field(None, description="Exposure variable for this meta-analysis")
+    population: Optional[str] = Field(None, description="Target population for this meta-analysis")
+    comparison: Optional[str] = Field(None, description="Comparison or intervention")
+    study_design: Optional[str] = Field(None, description="Expected study design")
     owner_id: Optional[str] = Field(None, description="User ID who owns this meta-analysis")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     study_count: int = Field(default=0, description="Number of studies in this meta-analysis")
     studies: List[str] = Field(default_factory=list, description="List of study IDs")
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -163,6 +166,11 @@ class BatchJob(BaseModel):
     effect_type: EffectMeasure
     owner_id: Optional[str] = None
     meta_analysis_id: Optional[str] = None
+    outcome: Optional[str] = None
+    exposure: Optional[str] = None
+    population: Optional[str] = None
+    comparison: Optional[str] = None
+    study_design: Optional[str] = None
     files: List[BatchJobFile] = Field(default_factory=list)
     status: BatchJobStatus = BatchJobStatus.PENDING
     total_files: int = 0

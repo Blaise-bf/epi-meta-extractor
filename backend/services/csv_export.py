@@ -7,8 +7,10 @@ from typing import List, Dict, Any, Optional
 
 class CSVExportService:
     """Handle CSV export of extracted study data"""
-    
-    # Define all fields based on the extraction schema
+
+    # Define all fields based on the structured output schemas
+    # (MetadataOutput, MethodsOutput, ORRRAnalysisOutput, HRAnalysisOutput,
+    #  MDSMDAnalysisOutput, ProportionAnalysisOutput)
     FIELD_MAPPING = {
         # Metadata fields
         "study_id": "study_id",
@@ -66,10 +68,7 @@ class CSVExportService:
         "rate_exposed": "rate_exposed",
         "rate_control": "rate_control",
 
-        # Group statistics (flattened)
-        "exposed_n": "exposed_n",
-        "exposed_mean": "exposed_mean",
-        "exposed_sd": "exposed_sd",
+        # Group statistics (flattened) — used by OR/RR structured output
         "unexposed_n": "unexposed_n",
         "unexposed_mean": "unexposed_mean",
         "unexposed_sd": "unexposed_sd",
@@ -77,27 +76,27 @@ class CSVExportService:
         # Additional fields
         "effect_measure_type": "effect_measure_type",
     }
-    
+
     def _flatten_group_statistics(self, group_stats: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """Flatten nested group statistics into flat structure"""
         flat = {}
         if not group_stats:
             return flat
-        
+
         if "exposed" in group_stats:
             exposed = group_stats["exposed"]
             flat["exposed_n"] = exposed.get("n")
             flat["exposed_mean"] = exposed.get("mean")
             flat["exposed_sd"] = exposed.get("sd")
-        
+
         if "unexposed" in group_stats:
             unexposed = group_stats["unexposed"]
             flat["unexposed_n"] = unexposed.get("n")
             flat["unexposed_mean"] = unexposed.get("mean")
             flat["unexposed_sd"] = unexposed.get("sd")
-        
+
         return flat
-    
+
     def _flatten_study(self, study: Dict[str, Any]) -> Dict[str, Any]:
         """Flatten nested study structure into flat dictionary"""
         flat = {}
@@ -187,58 +186,58 @@ class CSVExportService:
         flat.pop("_id", None)
 
         return flat
-    
+
     def export_to_csv(self, studies: List[Dict[str, Any]]) -> str:
         """
         Export studies to CSV format
-        
+
         Args:
             studies: List of study dictionaries
-        
+
         Returns:
             CSV string
         """
         if not studies:
             return ""
-        
+
         # Flatten all studies
         flat_studies = [self._flatten_study(study) for study in studies]
-        
+
         # Get all unique keys to build CSV header
         all_keys = set()
         for study in flat_studies:
             all_keys.update(study.keys())
-        
+
         # Order fields based on FIELD_MAPPING with any extras at the end
         ordered_keys = [
-            key for key in self.FIELD_MAPPING.keys() 
+            key for key in self.FIELD_MAPPING.keys()
             if key in all_keys
         ]
         # Add any extra keys not in mapping
         ordered_keys.extend(sorted(all_keys - set(self.FIELD_MAPPING.keys())))
-        
+
         # Create CSV in memory
         output = io.StringIO()
         writer = csv.DictWriter(output, fieldnames=ordered_keys)
-        
+
         # Write header
         writer.writeheader()
-        
+
         # Write data rows
         for study in flat_studies:
             # Fill in empty fields with None for missing keys
             row = {key: study.get(key) for key in ordered_keys}
             writer.writerow(row)
-        
+
         return output.getvalue()
-    
+
     def export_to_csv_bytes(self, studies: List[Dict[str, Any]]) -> bytes:
         """
         Export studies to CSV bytes
-        
+
         Args:
             studies: List of study dictionaries
-        
+
         Returns:
             CSV content as bytes
         """
