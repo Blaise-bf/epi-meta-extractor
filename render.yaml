@@ -1,0 +1,119 @@
+# Render Blueprint (Infrastructure as Code)
+# Deploy this repo to Render using the Blueprint feature:
+#   https://dashboard.render.com/blueprints
+#
+# Architecture:
+#   - Backend: Docker Web Service (FastAPI + Gunicorn)
+#   - Frontend: Static Site (Next.js export)
+#   - MongoDB: MongoDB Atlas (external, free M0 tier)
+#   - Qdrant: Qdrant Cloud (external, free tier)
+
+services:
+  # -----------------------------------------------------------------
+  # FastAPI Backend (Docker Web Service)
+  # -----------------------------------------------------------------
+  - type: web
+    name: epi-meta-backend
+    runtime: docker
+    repo: https://github.com/Blaise-bf/epi-meta-extractor
+    branch: main
+    dockerfilePath: ./Dockerfile.prod
+    dockerContext: .
+    plan: free
+    envVars:
+      # MongoDB Atlas (external)
+      - key: MONGODB_URI
+        sync: false  # Set manually in Render dashboard
+      - key: MONGODB_DB_NAME
+        value: epi_meta_extractor
+      # Qdrant Cloud (external)
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: QDRANT_COLLECTION_NAME
+        value: epi_studies
+      # LLM Provider
+      - key: LLM_PROVIDER
+        value: deepseek
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: DEEPSEEK_MODEL
+        value: deepseek-chat
+      - key: DEEPSEEK_API_URL
+        value: https://api.deepseek.com/v1
+      - key: OPENAI_API_KEY
+        sync: false
+      # PDF Parser
+      - key: PDF_PARSER_PRIMARY
+        value: marker
+      - key: PDF_PARSER_FALLBACK_CHAIN
+        value: marker,pypdf
+      - key: MARKER_ENABLED
+        value: "true"
+      - key: MARKER_TIMEOUT
+        value: "300"
+      - key: MARKER_USE_LLM
+        value: "false"
+      - key: GROBID_ENABLED
+        value: "false"
+      # Auth
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "1440"
+      - key: REFRESH_TOKEN_EXPIRE_DAYS
+        value: "30"
+      - key: MAGIC_LINK_EXPIRE_MINUTES
+        value: "15"
+      - key: FRONTEND_ORIGIN
+        sync: false  # Will be set to frontend static site URL
+      - key: COOKIE_SECURE
+        value: "true"
+      # SMTP
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: SMTP_TLS
+        value: "true"
+      # App
+      - key: DEBUG
+        value: "false"
+      - key: UPLOAD_DIR
+        value: /tmp/raw_pdfs
+      - key: TEMP_DIR
+        value: /tmp
+    healthCheckPath: /health
+    autoDeploy: true
+
+  # -----------------------------------------------------------------
+  # Next.js Frontend (Static Site)
+  # -----------------------------------------------------------------
+  - type: static
+    name: epi-meta-frontend
+    runtime: static
+    repo: https://github.com/Blaise-bf/epi-meta-extractor
+    branch: main
+    buildCommand: cd frontend && npm install && cp next.config.render.ts next.config.ts && npm run build
+    staticPublishPath: ./frontend/dist
+    plan: free
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        sync: false  # Set to backend service URL after first deploy
+    autoDeploy: true
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
